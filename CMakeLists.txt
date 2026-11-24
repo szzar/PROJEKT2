@@ -22,5 +22,4 @@ add_executable(research_facility
 
 target_include_directories(research_facility PRIVATE include)
 
-# SFML::Graphics pulls in Window and System automatically.
 target_link_libraries(research_facility PRIVATE SFML::Graphics)

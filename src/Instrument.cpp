@@ -1,44 +1,46 @@
-#include "Instrument.h" 
+#include "Instrument.h"
 #include "Plot.h"
 
 #include <SFML/Graphics.hpp>
 
-#include <algorithm>  // std::sort std::min  std::max
-#include <cmath>      // std::ceil std::floor std::abs
-#include <memory>  
-#include <utility>   
+#include <algorithm>
+#include <cmath>
+#include <filesystem>
+#include <memory>
+#include <utility>
+
+// Instrument
 
 Instrument::Instrument() = default;
 
-Instrument::Instrument(std::string name, int id):name_(std::move(name)), id_(id){}
+Instrument::Instrument(std::string name, int id): name_(std::move(name)), id_(id){}
 
 const std::string& Instrument::getName() const { return name_; }
 int Instrument::getId() const { return id_; }
 void Instrument::setName(const std::string& name) { name_ = name; }
 void Instrument::setId(int id) { id_ = id; }
 
-
+// Ionosonde
 
 Ionosonde::Ionosonde() : Instrument("Ionosonde", 0){}
 
-Ionosonde::Ionosonde(std::string name, int id, const ParabolicLayer& layer, double startFreqMHz, double endFreqMHz, int sampleCount):Instrument(std::move(name), id),
+Ionosonde::Ionosonde(std::string name, int id, const ParabolicLayer& layer,double startFreqMHz, double endFreqMHz, int sampleCount)
+    :Instrument(std::move(name), id),
       layer_(layer),
       startFreqMHz_(startFreqMHz),
       endFreqMHz_(endFreqMHz),
-      sampleCount_(sampleCount > 1 ? sampleCount : 2) {}
+      sampleCount_(sampleCount > 1 ? sampleCount : 2){}
 
 std::string Ionosonde::getTypeName() const { return "Ionosonde"; }
 
-std::vector<std::pair<double, double>> Ionosonde::computeIonogram() const
-{
+std::vector<std::pair<double, double>> Ionosonde::computeIonogram() const{
     std::vector<std::pair<double, double>> points;
     const double step = (endFreqMHz_ - startFreqMHz_) / static_cast<double>(sampleCount_ - 1);
 
     for (int i = 0; i < sampleCount_; ++i) {
         const double frequency = startFreqMHz_ + step * i;
         if (!layer_.reflects(frequency))
-            break;
-
+            break;  // above the critical frequency the wave penetrates
         points.emplace_back(frequency, layer_.virtualHeight(frequency));
     }
     return points;
@@ -56,11 +58,13 @@ void Ionosonde::draw(sf::RenderTarget& target, const sf::FloatRect& area) const{
     plot.draw(target);
 }
 
+// WeatherStation
+
 WeatherStation::WeatherStation():location_("Unknown"){}
 
 WeatherStation::WeatherStation(std::string name, int id, std::string location):Instrument(std::move(name), id), location_(std::move(location)){}
 
-std::string WeatherStation::getTypeName() const {return "Weather station";}
+std::string WeatherStation::getTypeName() const { return "Weather station"; }
 
 void WeatherStation::addReading(double hour, double temperatureC){
     readings_.push_back(WeatherReading{hour, temperatureC});
@@ -71,7 +75,6 @@ void WeatherStation::addReading(double hour, double temperatureC){
 bool WeatherStation::removeReading(std::size_t index){
     if (index >= readings_.size())
         return false;
-
     readings_.erase(readings_.begin() + static_cast<std::ptrdiff_t>(index));
     return true;
 }
@@ -79,7 +82,6 @@ bool WeatherStation::removeReading(std::size_t index){
 bool WeatherStation::setReadingTemperature(std::size_t index, double temperatureC){
     if (index >= readings_.size())
         return false;
-
     readings_[index].temperatureC = temperatureC;
     return true;
 }
@@ -95,6 +97,7 @@ int WeatherStation::findReading(double hour) const{
 const WeatherReading& WeatherStation::getReading(std::size_t index) const{
     return readings_.at(index);
 }
+
 double WeatherStation::getMinTemperature() const{
     if (readings_.empty())
         return 0.0;
@@ -115,8 +118,8 @@ double WeatherStation::getMaxTemperature() const{
     return maximum;
 }
 
-const std::string& WeatherStation::getLocation() const {return location_;}
-void WeatherStation::setLocation(const std::string& location) {location_ = location; }
+const std::string& WeatherStation::getLocation() const { return location_; }
+void WeatherStation::setLocation(const std::string& location) { location_ = location; }
 
 void WeatherStation::draw(sf::RenderTarget& target, const sf::FloatRect& area) const{
     std::vector<std::pair<double, double>> points;
@@ -141,12 +144,23 @@ void WeatherStation::draw(sf::RenderTarget& target, const sf::FloatRect& area) c
     plot.draw(target);
 }
 
-namespace{
+// CameraFeed
+
+namespace {
 bool loadTexture(sf::Texture& texture, const std::string& path){
-    return texture.loadFromFile(path) || texture.loadFromFile("../" + path);
+    const std::string candidates[] = {path, "../" + path};
+
+    for (const std::string& candidate : candidates) {
+        std::error_code ignored;
+        if (!std::filesystem::is_regular_file(candidate, ignored))
+            continue;
+        if (texture.loadFromFile(candidate))
+            return true;
+    }
+    return false;
 }
 
-}
+} // namespace
 
 CameraFeed::CameraFeed():Instrument("CameraFeed", 0), location_("Unknown"){}
 
@@ -167,6 +181,25 @@ void CameraFeed::addFrame(const std::string& imagePath){
     textures_.push_back(std::move(texture));
 }
 
+bool CameraFeed::removeFrame(std::size_t index){
+    if (index >= frames_.size())
+        return false;
+
+    frames_.erase(frames_.begin() + static_cast<std::ptrdiff_t>(index));
+    textures_.erase(textures_.begin() + static_cast<std::ptrdiff_t>(index));
+    if (currentFrame_ >= frames_.size())
+        currentFrame_ = 0;
+    return true;
+}
+
+int CameraFeed::findFrame(const std::string& imagePath) const{
+    for (std::size_t i = 0; i < frames_.size(); ++i) {
+        if (frames_[i] == imagePath)
+            return static_cast<int>(i);
+    }
+    return -1;
+}
+
 void CameraFeed::draw(sf::RenderTarget& target, const sf::FloatRect& area) const{
     if (area.size.x <= 0.f || area.size.y <= 0.f)
         return;
@@ -182,6 +215,7 @@ void CameraFeed::draw(sf::RenderTarget& target, const sf::FloatRect& area) const
         texture != nullptr && texture->getSize().x > 0 && texture->getSize().y > 0;
 
     if (hasImage) {
+        // fit the whole photo inside the window without stretching it.
         const float width = static_cast<float>(texture->getSize().x);
         const float height = static_cast<float>(texture->getSize().y);
         const float scale = std::min(area.size.x / width, area.size.y / height);
@@ -201,6 +235,7 @@ void CameraFeed::draw(sf::RenderTarget& target, const sf::FloatRect& area) const
         target.draw(message);
     }
 
+    // HUD strip to keep the caption and REC readable
     sf::RectangleShape hud({area.size.x, 34.f});
     hud.setPosition(area.position);
     hud.setFillColor(sf::Color(0, 0, 0, 140));
@@ -211,9 +246,7 @@ void CameraFeed::draw(sf::RenderTarget& target, const sf::FloatRect& area) const
           std::to_string(frames_.size()) + ")"
         : "no frames";
 
-    sf::Text caption(defaultFont(),
-                     "CAM " + std::to_string(getId()) + " - " + location_ + " - " + frameText,
-                     14);
+    sf::Text caption(defaultFont(),"CAM " + std::to_string(getId()) + " - " + location_ + " - " + frameText,14);
     caption.setFillColor(sf::Color(240, 240, 240));
     caption.setPosition({area.position.x + 14.f, area.position.y + 9.f});
     target.draw(caption);
