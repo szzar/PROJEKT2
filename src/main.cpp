@@ -15,8 +15,7 @@ namespace {
 
 constexpr double kPi = 3.14159265358979323846;
 
-// Console box width in characters. Stars are the border because the project
-// is sky-themed; the inner width leaves room for "* " and " *".
+// Console box width in characters
 constexpr std::size_t kConsoleWidth = 52;
 
 void printBorder()
