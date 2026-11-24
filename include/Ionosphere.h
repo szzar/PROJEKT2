@@ -11,7 +11,7 @@ class ParabolicLayer{
         ParabolicLayer(double peakHeightKm, double halfThicknessKm, double criticalFreqMHz);
 
         double getPeakHeight() const;
-        double getHalfThckness() const;
+        double getHalfThickness() const;
         double getCriticalFreq() const;
         bool reflects(double freqMHz) const;
         double virtualHeight(double freqMHz) const;

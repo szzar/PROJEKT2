@@ -39,7 +39,7 @@ class Ionosonde: public Instrument{
 
 struct WeatherReading{
     double hour;
-    double temperature;
+    double temperatureC;
 };
 
 class weatherStation: public Instrument{
@@ -53,9 +53,9 @@ class weatherStation: public Instrument{
 
         std::string getTypeName() const override;
         void draw(sf::RenderTarget& target, const sf::FloatRect& area) const override;
-        void addReading(double hour, double temperature);
+        void addReading(double hour, double temperatureC);
         bool removeReading(std::size_t index);
-        bool setReadingTemperature(std::size_t index, double temperature);
+        bool setReadingTemperature(std::size_t index, double temperatureC);
         int findReading(double hour) const;
         const WeatherReading& getReading(std::size_t index) const;
 
