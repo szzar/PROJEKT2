@@ -84,3 +84,7 @@ void printMenu(const std::vector<Instrument*>& instruments){
 }
 
 }
+int main(){
+
+    return 0;
+}
